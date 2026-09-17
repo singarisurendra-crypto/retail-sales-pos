@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Retail Sales POS</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{--ink:#111827;--blue:#0878d1;--line:#d8e0e8;--bg:#f4f7fa;--muted:#64748b}
+*{box-sizing:border-box}body{margin:0;font-family:Inter,Arial,sans-serif;background:var(--bg);color:var(--ink)}
+button,input,select{font:inherit}button{cursor:pointer}
+.top{height:62px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;padding:0 18px;position:sticky;top:0;z-index:10}
+.logo{width:36px;height:36px;border:1px solid #dbe4ee;border-radius:8px;display:grid;place-items:center;color:var(--blue);font-weight:800}
+.nav{display:flex;gap:18px;align-items:center;overflow:auto;white-space:nowrap;padding:10px 18px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:62px;z-index:9}
+.nav button{border:0;background:transparent;color:#334155;padding:8px 4px;font-weight:600}.nav button.active{color:var(--blue);border-bottom:2px solid var(--blue)}
+.wrap{max-width:1180px;margin:auto;padding:18px}
+.titlebar{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:14px}
+.eyebrow{font-size:13px;color:var(--blue);font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+h1{font-size:25px;margin:4px 0}h2{font-size:18px;margin:0 0 14px}h3{font-size:15px;margin:0 0 10px}
+.controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.btn{border:1px solid var(--line);background:#fff;border-radius:9px;padding:10px 13px;font-weight:600}.btn.primary{background:var(--blue);color:#fff;border-color:var(--blue)}
+.btn.dark{background:var(--ink);color:#fff;border-color:var(--ink)}
+.date{padding:10px;border:1px solid var(--line);border-radius:9px;background:#fff}
+.search{display:flex;gap:10px;margin:12px 0}.search input{flex:1;padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:#fff}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 350px;gap:18px}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px}
+.cardhead{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:8px}
+.empty{min-height:280px;display:grid;place-items:center;text-align:center;color:var(--muted)}
+.cartitem{display:grid;grid-template-columns:1fr 92px 105px;gap:8px;align-items:center;border-bottom:1px solid #edf1f5;padding:13px 0}
+.cartitem input{width:75px;padding:8px;border:1px solid var(--line);border-radius:7px}
+.money{font-weight:700;text-align:right}
+.summaryrow{display:flex;justify-content:space-between;padding:9px 0;color:#475569}.summaryrow.total{border-top:1px solid var(--line);margin-top:5px;padding-top:15px;font-size:20px;color:var(--ink);font-weight:800}
+.field label{display:block;font-size:12px;font-weight:700;color:#475569;margin:12px 0 5px}.field input,.field select{width:100%;padding:11px;border:1px solid var(--line);border-radius:8px;background:#fff}
+.notice{padding:10px 12px;border-radius:9px;background:#eff6ff;color:#1e40af;margin:10px 0;font-size:13px}.error{background:#fff1f2;color:#be123c}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.picker{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px}
+.prod{border:1px solid var(--line);background:#fff;border-radius:10px;padding:12px;text-align:left}.prod:hover{border-color:var(--blue)}
+.prod b{display:block;margin-bottom:5px}.prod small{color:var(--muted)}
+.tablewrap{overflow:auto}table{width:100%;border-collapse:collapse}th,td{padding:10px;border-bottom:1px solid #edf1f5;text-align:left;font-size:14px}
+.metricgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.metric{background:#fff;border:1px solid var(--line);border-radius:12px;padding:15px}.metric small{color:var(--muted)}.metric b{display:block;font-size:22px;margin-top:5px}
+.hidden{display:none!important}
+@media(max-width:850px){.layout{grid-template-columns:1fr}.picker{grid-template-columns:repeat(2,1fr)}.metricgrid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:600px){.wrap{padding:10px}.top{padding:0 10px}.nav{padding:8px 10px;gap:14px;top:62px}.titlebar{flex-direction:column}.search{flex-direction:column}.cartitem{grid-template-columns:1fr 75px 85px}.picker{grid-template-columns:1fr 1fr}}
+
+.product-toolbar{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+.filterbox{background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:12px}
+.filtergrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.filtergrid .field{margin:0}
+.stocktable th{background:#eaf3fb;color:#1f3b55}.stocktable td{vertical-align:middle}
+.status-active{color:#08783f;font-weight:700}.status-inactive{color:#9b1c1c;font-weight:700}
+.smallbtn{padding:7px 10px;border:1px solid var(--line);background:#fff;border-radius:7px}
+.modal{position:fixed;inset:0;background:#0007;display:none;align-items:center;justify-content:center;padding:15px;z-index:50}
+.modal.open{display:flex}.modalbox{background:#fff;border-radius:12px;width:min(850px,100%);max-height:90vh;overflow:auto;padding:18px}
+.modalhead{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding-bottom:10px}
+@media(max-width:900px){.filtergrid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:600px){.filtergrid{grid-template-columns:1fr}.stocktable{min-width:850px}}
+
+</style>
+</head>
+<body>
+<header class="top"><div class="logo">₹</div><div><b>Retail Sales</b><div style="font-size:11px;color:#64748b">Cloud POS & Inventory</div></div></header>
+<nav class="nav" id="nav">
+<button class="active" onclick="show('pos',this)">POS Billing</button>
+<button onclick="show('orders',this)">Orders</button>
+<button onclick="show('catalogue',this)">Catalogue</button>
+<button onclick="show('masters',this)">Masters</button>
+<button onclick="show('stock',this)">Stock</button>
+<button onclick="show('analytics',this)">Analytics</button>
+</nav>
+
+<div class="wrap">
+<div id="msg"></div>
+
+<section id="pos">
+<div class="titlebar">
+<div><div class="eyebrow">Point of Sale Engine</div><h1>POS Billing & Multi-Batch Allocation</h1><div style="color:#64748b;font-size:13px">Catalogue-driven billing with cloud stock updates.</div></div>
+<div class="controls">
+<button class="btn" onclick="clearCart()">New Bill</button>
+<input class="date" id="invoiceDate" type="date">
+</div>
+</div>
+
+<div class="search"><input id="search" placeholder="Quick search & add product by name, category, or barcode..."><button class="btn primary" onclick="togglePicker()">Open Product Picker Grid</button></div>
+
+<div class="layout">
+<div class="card">
+<div class="cardhead"><h2>Active Sale Order (<span id="itemCount">0</span> line items)</h2><button class="btn" onclick="clearCart()">Clear</button></div>
+<div id="cart" class="empty"><div><div style="font-size:42px">🛒</div><b>Sale Order is Empty</b><p>Add products using search or the Product Picker Grid.</p></div></div>
+<div id="picker" class="picker hidden"></div>
+</div>
+
+<aside class="card">
+<div class="cardhead"><h2>₹ Financial Allocation Summary</h2></div>
+<div class="summaryrow"><span>Total Units Billed:</span><b id="sumUnits">0 items</b></div>
+<div class="summaryrow"><span>Estimated Acquisition Cost:</span><b>₹<span id="cost">0.00</span></b></div>
+<div class="summaryrow"><span>Estimated Net Profit:</span><b id="profit">+₹0.00</b></div>
+<div class="summaryrow"><span>Gross Profit Margin:</span><b id="margin">0.0%</b></div>
+<div class="summaryrow total"><span>Order Subtotal:</span><span>₹<span id="subtotal">0.00</span></span></div>
+
+<div class="field"><label>Invoice Date</label><input id="invoiceDate2" type="date"></div>
+<div class="field"><label>Payment Mode</label><select id="payment"></select></div>
+<div class="field"><label>Invoice Number</label><input id="invoiceNo" placeholder="Auto generated"></div>
+<button class="btn primary" style="width:100%;margin-top:10px;padding:14px" onclick="completeSale()">Complete Sale & Print Receipt</button>
+</aside>
+</div>
+</section>
+
+<section id="orders" class="hidden card"><h2>Orders</h2><div id="ordersTable"></div></section>
+
+<section id="catalogue" class="hidden">
+<div class="card"><h2>Product Catalogue</h2>
+<div class="grid">
+<div class="field"><label>Product Name</label><input id="pname"></div>
+<div class="field"><label>Category</label><input id="pcat"></div>
+<div class="field"><label>MRP</label><input id="pmrp" type="number"></div>
+<div class="field"><label>Selling Price</label><input id="pprice" type="number"></div>
+<div class="field"><label>Opening Stock</label><input id="pstock" type="number" value="0"></div>
+</div>
+<button class="btn primary" onclick="addProduct()">Add Product</button>
+<hr><div id="productsTable" class="tablewrap"></div></div>
+</section>
+
+<section id="masters" class="hidden">
+<div class="card"><h2>Masters</h2><button class="btn primary" onclick="show('payments',null)">Payment Mode</button></div>
+</section>
+<section id="payments" class="hidden card">
+<h2>Payment Mode List</h2>
+<div class="grid"><div class="field"><label>Payment Mode</label><input id="pmname" placeholder="e.g. Bank Transfer"></div><div class="field"><label>Status</label><select id="pmstatus"><option value="true">Active</option><option value="false">Inactive</option></select></div></div>
+<button class="btn primary" onclick="addPayment()">+ Add Payment Mode</button><div id="pmTable" class="tablewrap" style="margin-top:14px"></div>
+</section>
+
+
+<section id="stock" class="hidden">
+  <div class="product-toolbar">
+    <div>
+      <div class="eyebrow">Stock / Products</div>
+      <h1 style="margin:4px 0">Product List</h1>
+      <div style="font-size:13px;color:#64748b">Create, view and manage retail products.</div>
+    </div>
+    <button class="btn primary" onclick="openProductModal()">+ Create Product</button>
+  </div>
+
+  <div class="filterbox">
+    <div class="filtergrid">
+      <div class="field"><label>Product Type</label><select id="fType"><option value="">All</option></select></div>
+      <div class="field"><label>Product Sub Type</label><select id="fSubType"><option value="">All</option></select></div>
+      <div class="field"><label>Product Name</label><input id="fName" placeholder="Search product"></div>
+      <div class="field"><label>Product Code</label><input id="fCode" placeholder="Search code"></div>
+    </div>
+    <div class="controls" style="margin-top:10px">
+      <div class="field" style="min-width:150px"><label>Active Flag</label><select id="fActive"><option value="">All</option><option value="true">Active</option><option value="false">Inactive</option></select></div>
+      <button class="btn dark" onclick="filterProducts()">Go</button>
+      <button class="btn" onclick="clearProductFilters()">Clear</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="cardhead">
+      <h2 id="productCountLabel">Product List</h2>
+      <div class="controls">
+        <button class="btn" onclick="openProductModal()">+ Create Product</button>
+        <button class="btn" onclick="renderStockTable()">↻ Refresh</button>
+      </div>
+    </div>
+    <div id="stockTable" class="tablewrap"></div>
+  </div>
+</section>
+
+<section id="analytics" class="hidden">
+<div class="metricgrid"><div class="metric"><small>Today's Sales</small><b id="aSales">₹0</b></div><div class="metric"><small>Bills</small><b id="aBills">0</b></div><div class="metric"><small>Products</small><b id="aProducts">0</b></div><div class="metric"><small>Low Stock</small><b id="aLow">0</b></div></div>
+</section>
+</div>
+
+
+<div class="modal" id="productModal">
+  <div class="modalbox">
+    <div class="modalhead"><h2 id="productModalTitle">Create Product</h2><button class="smallbtn" onclick="closeProductModal()">✕</button></div>
+    <div class="grid">
+      <div class="field"><label>Product Type</label><input id="mType" placeholder="e.g. Grocery"></div>
+      <div class="field"><label>Product Sub Type</label><input id="mSubType" placeholder="e.g. Rice"></div>
+      <div class="field"><label>Product Name *</label><input id="mName" placeholder="Product name"></div>
+      <div class="field"><label>Product Code</label><input id="mCode" placeholder="SKU / Code"></div>
+      <div class="field"><label>UOM</label><input id="mUom" placeholder="NOS / KG / LTR"></div>
+      <div class="field"><label>HSN Code</label><input id="mHsn" placeholder="HSN"></div>
+      <div class="field"><label>MRP</label><input id="mMrp" type="number" step="0.01"></div>
+      <div class="field"><label>Selling Price</label><input id="mPrice" type="number" step="0.01"></div>
+      <div class="field"><label>Opening Stock</label><input id="mStock" type="number" step="0.01" value="0"></div>
+      <div class="field"><label>Active Flag</label><select id="mActive"><option value="true">Active</option><option value="false">Inactive</option></select></div>
+    </div>
+    <div class="controls" style="justify-content:flex-end;margin-top:14px">
+      <button class="btn" onclick="closeProductModal()">Cancel</button>
+      <button class="btn primary" onclick="saveProductFromStock()">Save Product</button>
+    </div>
+    <div id="productView" class="notice hidden"></div>
+  </div>
+</div>
+
+<script>
+const db=supabase.createClient("https://ppssnkygnxodhaejjfiq.supabase.co","sb_publishable_bea-urHqD2i-Qw2JdNDopJ");
+let products=[], payments=[], sales=[], cart=[];
+const $=id=>document.getElementById(id);
+function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]))}
+function money(v){return Number(v||0).toFixed(2)}
+function msg(t,err=false){$("msg").innerHTML='<div class="notice '+(err?'error':'')+'">'+esc(t)+'</div>';setTimeout(()=>$("msg").innerHTML="",4500)}
+function todayISO(){return new Date().toISOString().slice(0,10)}
+function show(id,btn){document.querySelectorAll(".wrap>section").forEach(x=>x.classList.add("hidden"));$(id).classList.remove("hidden");document.querySelectorAll(".nav button").forEach(x=>x.classList.remove("active"));if(btn)btn.classList.add("active");render()}
+function setDates(){let d=todayISO();$("invoiceDate").value=d;$("invoiceDate2").value=d}
+async function load(){try{
+ const [p,pm,s]=await Promise.all([
+  db.from("products").select("*").order("id"),
+  db.from("payment_modes").select("*").order("id"),
+  db.from("sales").select("*").order("id",{ascending:false}).limit(100)
+ ]);
+ if(p.error)throw p.error;if(pm.error)throw pm.error;if(s.error)throw s.error;
+ products=p.data||[];payments=pm.data||[];sales=s.data||[];render();
+}catch(e){msg("Cloud database error: "+e.message,true)}}
+function render(){
+ const active=payments.filter(x=>x.status);
+ $("payment").innerHTML=active.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join("");
+ if(!$("payment").value && active[0])$("payment").value=active[0].id;
+ $("invoiceNo").value=$("invoiceNo").value||"INV-"+new Date().toISOString().replace(/\D/g,"").slice(0,14);
+ renderCart();renderPicker();renderTables();renderAnalytics();
+}
+function renderCart(){
+ $("itemCount").textContent=cart.length;
+ if(!cart.length){$("cart").className="empty";$("cart").innerHTML='<div><div style="font-size:42px">🛒</div><b>Sale Order is Empty</b><p>Add products using search or the Product Picker Grid.</p></div>';}
+ else{$("cart").className="";$("cart").innerHTML=cart.map((x,i)=>`<div class="cartitem"><div><b>${esc(x.name)}</b><br><small style="color:#64748b">Stock: ${x.stock} · ₹${money(x.price)}</small></div><div><input type="number" min="1" max="${x.stock}" value="${x.qty}" onchange="changeQty(${i},this.value)"></div><div class="money">₹${money(x.qty*x.price)}<br><button class="btn" style="padding:4px 7px;margin-top:4px" onclick="removeCart(${i})">Remove</button></div></div>`).join("");}
+ const units=cart.reduce((a,x)=>a+x.qty,0), subtotal=cart.reduce((a,x)=>a+x.qty*x.price,0),cost=cart.reduce((a,x)=>a+x.qty*Number(x.cost||x.price),0),profit=subtotal-cost;
+ $("sumUnits").textContent=units+" items";$("subtotal").textContent=money(subtotal);$("cost").textContent=money(cost);$("profit").textContent=(profit>=0?"+":"")+"₹"+money(profit);$("margin").textContent=(subtotal?((profit/subtotal)*100):0).toFixed(1)+"%";
+}
+function renderPicker(){
+ let q=$("search").value.toLowerCase().trim(), list=products.filter(p=>(p.name+" "+(p.category||"")).toLowerCase().includes(q));
+ $("picker").innerHTML=list.map(p=>`<button class="prod" onclick="addCart(${p.id})"><b>${esc(p.name)}</b><small>${esc(p.category||"")}</small><br><b>₹${money(p.selling_price)}</b><small> · Stock ${p.stock}</small></button>`).join("")||'<div class="notice">No products found.</div>';
+}
+function togglePicker(){$("picker").classList.toggle("hidden");renderPicker()}
+$("search").addEventListener("input",()=>{renderPicker();$("picker").classList.remove("hidden")});
+function addCart(id){let p=products.find(x=>x.id==id);if(!p)return;if(Number(p.stock)<=0)return msg("Product is out of stock",true);let x=cart.find(x=>x.id==id);if(x){if(x.qty<Number(p.stock))x.qty++;else return msg("Quantity exceeds stock",true)}else cart.push({id:p.id,name:p.name,price:Number(p.selling_price||0),stock:Number(p.stock||0),cost:Number(p.purchase_price||p.selling_price||0),qty:1});renderCart()}
+function changeQty(i,v){let q=Math.max(1,Number(v)||1);if(q>cart[i].stock)return msg("Quantity exceeds stock",true);cart[i].qty=q;renderCart()}
+function removeCart(i){cart.splice(i,1);renderCart()}
+function clearCart(){cart=[];$("invoiceNo").value="INV-"+Date.now();renderCart()}
+async function addProduct(){
+ let name=$("pname").value.trim();if(!name)return msg("Enter product name",true);
+ let row={name,category:$("pcat").value.trim(),mrp:+$("pmrp").value||0,selling_price:+$("pprice").value||0,stock:+$("pstock").value||0};
+ let r=await db.from("products").insert(row);if(r.error)return msg(r.error.message,true);
+ ["pname","pcat","pmrp","pprice"].forEach(x=>$(x).value="");$("pstock").value=0;msg("Product saved to cloud");load();
+}
+async function addPayment(){
+ let name=$("pmname").value.trim(),status=$("pmstatus").value==="true";if(!name)return msg("Enter payment mode",true);
+ let r=await db.from("payment_modes").insert({name,status});if(r.error)return msg(r.error.message,true);
+ $("pmname").value="";msg("Payment mode saved to cloud");load();
+}
+async function togglePayment(id,status){let r=await db.from("payment_modes").update({status:!status}).eq("id",id);if(r.error)return msg(r.error.message,true);load()}
+async function completeSale(){
+ if(!cart.length)return msg("Add at least one product",true);
+ let pm=payments.find(x=>String(x.id)===String($("payment").value));if(!pm)return msg("Select an active payment mode",true);
+ let invoiceDate=$("invoiceDate2").value||$("invoiceDate").value||todayISO();
+ let invoiceNo=$("invoiceNo").value.trim()||("INV-"+Date.now());
+ let total=cart.reduce((a,x)=>a+x.qty*x.price,0);
+ let saleDate=new Date(invoiceDate+"T12:00:00").toISOString();
+ let s=await db.from("sales").insert({invoice_no:invoiceNo,payment_mode_id:pm.id,total_amount:total,sale_date:saleDate}).select().single();
+ if(s.error)return msg("Sale save failed: "+s.error.message,true);
+ for(const x of cart){
+   let i=await db.from("sale_items").insert({sale_id:s.data.id,product_id:x.id,quantity:x.qty,rate:x.price,amount:x.qty*x.price});
+   if(i.error)return msg("Sale header saved, but item failed: "+i.error.message,true);
+   let u=await db.from("products").update({stock:Number(x.stock)-Number(x.qty)}).eq("id",x.id);
+   if(u.error)return msg("Sale saved, but stock update failed: "+u.error.message,true);
+ }
+ msg("Invoice "+invoiceNo+" saved successfully");
+ cart=[];$("invoiceNo").value="INV-"+Date.now();load();
+}
+
+function productField(p,key,def=""){return p && p[key]!==null && p[key]!==undefined ? p[key] : def}
+function uniqueValues(key){return [...new Set(products.map(p=>String(productField(p,key,"")).trim()).filter(Boolean))].sort()}
+function refreshProductFilters(){
+  const types=uniqueValues("product_type"), subs=uniqueValues("product_sub_type");
+  $("fType").innerHTML='<option value="">All</option>'+types.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join("");
+  $("fSubType").innerHTML='<option value="">All</option>'+subs.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join("");
+}
+function filterProducts(){renderStockTable()}
+function clearProductFilters(){["fType","fSubType","fName","fCode"].forEach(id=>$(id).value="");$("fActive").value="";renderStockTable()}
+function filteredProducts(){
+  const t=$("fType").value.toLowerCase(), st=$("fSubType").value.toLowerCase(), n=$("fName").value.toLowerCase().trim(), c=$("fCode").value.toLowerCase().trim(), a=$("fActive").value;
+  return products.filter(p=>{
+    const pt=String(productField(p,"product_type","")).toLowerCase(), ps=String(productField(p,"product_sub_type","")).toLowerCase();
+    const pn=String(p.name||"").toLowerCase(), pc=String(productField(p,"product_code","")).toLowerCase();
+    const active=String(productField(p,"active",true));
+    return (!t||pt===t)&&(!st||ps===st)&&(!n||pn.includes(n))&&(!c||pc.includes(c))&&(!a||active===a);
+  });
+}
+function renderStockTable(){
+  refreshProductFilters();
+  const list=filteredProducts();
+  $("productCountLabel").textContent=`Displaying 1 to ${list.length} of ${products.length} Products`;
+  $("stockTable").innerHTML=`<table class="stocktable"><thead><tr>
+    <th>Product ID</th><th>Product Type</th><th>Product Sub Type</th><th>Product</th><th>Product Code</th><th>UOM</th><th>HSN Code</th><th>MRP</th><th>Stock</th><th>Active</th><th>Action</th>
+  </tr></thead><tbody>${list.map(p=>`<tr>
+    <td>${p.id}</td><td>${esc(productField(p,"product_type",""))}</td><td>${esc(productField(p,"product_sub_type",""))}</td>
+    <td><b>${esc(p.name)}</b></td><td>${esc(productField(p,"product_code",""))}</td><td>${esc(productField(p,"uom",""))}</td>
+    <td>${esc(productField(p,"hsn_code",""))}</td><td>₹${money(p.mrp)}</td><td>${productField(p,"stock",0)}</td>
+    <td class="${productField(p,"active",true)?'status-active':'status-inactive'}">${productField(p,"active",true)?'Active':'Inactive'}</td>
+    <td><button class="smallbtn" onclick="viewProduct(${p.id})">View</button></td>
+  </tr>`).join("")}</tbody></table>`;
+}
+function openProductModal(p=null){
+  $("productModal").classList.add("open");$("productView").classList.add("hidden");
+  $("productModalTitle").textContent=p?"View Product":"Create Product";
+  $("mType").value=productField(p,"product_type","");
+  $("mSubType").value=productField(p,"product_sub_type","");
+  $("mName").value=p?p.name:"";$("mCode").value=productField(p,"product_code","");
+  $("mUom").value=productField(p,"uom","NOS");$("mHsn").value=productField(p,"hsn_code","");
+  $("mMrp").value=productField(p,"mrp",0);$("mPrice").value=productField(p,"selling_price",0);
+  $("mStock").value=productField(p,"stock",0);$("mActive").value=String(productField(p,"active",true));
+  const disabled=!!p;
+  ["mType","mSubType","mName","mCode","mUom","mHsn","mMrp","mPrice","mStock","mActive"].forEach(id=>$(id).disabled=disabled);
+  document.querySelector('#productModal .btn.primary').style.display=disabled?'none':'inline-block';
+  if(p){$("productView").classList.remove("hidden");$("productView").textContent=`Product ID: ${p.id} · Created: ${p.created_at?new Date(p.created_at).toLocaleString():"-"}`;}
+}
+function closeProductModal(){$("productModal").classList.remove("open")}
+function viewProduct(id){const p=products.find(x=>x.id==id);if(p)openProductModal(p)}
+async function saveProductFromStock(){
+  const name=$("mName").value.trim();if(!name)return msg("Product name is required",true);
+  const row={
+    name,category:$("mType").value.trim(),mrp:+$("mMrp").value||0,selling_price:+$("mPrice").value||0,stock:+$("mStock").value||0,
+    product_type:$("mType").value.trim(),product_sub_type:$("mSubType").value.trim(),product_code:$("mCode").value.trim(),
+    uom:$("mUom").value.trim(),hsn_code:$("mHsn").value.trim(),active:$("mActive").value==="true"
+  };
+  const r=await db.from("products").insert(row);
+  if(r.error)return msg("Product save failed: "+r.error.message,true);
+  closeProductModal();msg("Product created successfully");await load();
+}
+
+function renderTables(){
+ $("pmTable").innerHTML="<table><tr><th>Payment Mode</th><th>Status</th><th>Action</th></tr>"+payments.map(x=>`<tr><td>${esc(x.name)}</td><td>${x.status?"Active":"Inactive"}</td><td><button class="btn" onclick="togglePayment(${x.id},${x.status})">${x.status?"Deactivate":"Activate"}</button></td></tr>`).join("")+"</table>";
+ $("productsTable").innerHTML="<table><tr><th>Product</th><th>Category</th><th>Price</th><th>Stock</th></tr>"+products.map(x=>`<tr><td>${esc(x.name)}</td><td>${esc(x.category||"")}</td><td>₹${money(x.selling_price)}</td><td>${x.stock}</td></tr>`).join("")+"</table>";
+ renderStockTable();
+ $("ordersTable").innerHTML="<table><tr><th>Invoice</th><th>Date</th><th>Total</th></tr>"+sales.map(x=>`<tr><td>${esc(x.invoice_no)}</td><td>${new Date(x.sale_date).toLocaleDateString()}</td><td>₹${money(x.total_amount)}</td></tr>`).join("")+"</table>";
+}
+function renderAnalytics(){let d=todayISO(),s=sales.filter(x=>String(x.sale_date).slice(0,10)===d);$("aSales").textContent="₹"+money(s.reduce((a,x)=>a+Number(x.total_amount||0),0));$("aBills").textContent=s.length;$("aProducts").textContent=products.length;$("aLow").textContent=products.filter(x=>Number(x.stock)<=5).length}
+$("invoiceDate").addEventListener("change",e=>$("invoiceDate2").value=e.target.value);$("invoiceDate2").addEventListener("change",e=>$("invoiceDate").value=e.target.value);
+setDates();load();
+</script>
+</body></html>
